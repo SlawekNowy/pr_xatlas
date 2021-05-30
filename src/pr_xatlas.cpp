@@ -53,7 +53,29 @@ std::vector<AtlasMesh> Atlas::Generate()
 {
 	printf("Generating atlas...\n");
 	xatlas::ChartOptions chartOptions {};
+	chartOptions.maxChartArea = 0.0;
+	chartOptions.maxBoundaryLength = 0.0;
+	chartOptions.normalDeviationWeight = 2.0;
+	chartOptions.roundnessWeight = 0.01;
+	chartOptions.straightnessWeight = 6.0;
+	chartOptions.normalSeamWeight = 4.0;
+	chartOptions.textureSeamWeight = 0.5;
+	chartOptions.maxCost = 2.0;
+	chartOptions.maxIterations = 1;
+	chartOptions.useInputMeshUvs = false;
+	chartOptions.fixWinding = false;
+
 	xatlas::PackOptions packOptions {};
+	packOptions.maxChartSize = 0;
+	packOptions.blockAlign = false;
+	packOptions.texelsPerUnit = 0.0;
+	packOptions.resolution = 0;
+	packOptions.bilinear = true;
+	packOptions.createImage = false;
+	packOptions.bruteForce = false;
+	packOptions.rotateChartsToAxis = true;
+	packOptions.rotateCharts = true;
+	packOptions.padding = 1;
 	xatlas::Generate(m_atlas,chartOptions,packOptions);
 
 	printf("   %d charts\n", m_atlas->chartCount);
@@ -122,6 +144,25 @@ void Atlas::AddMesh(const ModelSubMesh &mesh,const Material &material)
 		std::cout<<"Error: "<<xatlas::StringForEnum(error)<<std::endl;
 		return;
 	}
+	
+	xatlas::UvMeshDecl uvMeshDecl {};
+
+	xatlas::AddMeshError error = xatlas::AddUvMesh(m_atlas,meshDecl);
+#if 0
+struct UvMeshDecl
+{
+	const void *vertexUvData = nullptr;
+	const void *indexData = nullptr; // optional
+	const uint32_t *faceMaterialData = nullptr; // Optional. Overlapping UVs should be assigned a different material. Must be indexCount / 3 in length.
+	uint32_t vertexCount = 0;
+	uint32_t vertexStride = 0;
+	uint32_t indexCount = 0;
+	int32_t indexOffset = 0; // optional. Add this offset to all indices.
+	IndexFormat indexFormat = IndexFormat::UInt16;
+};
+	xatlas::AddMeshError error = xatlas::AddUvMesh(m_atlas,meshDecl);
+
+#endif
 }
 
 Atlas::Atlas(xatlas::Atlas *atlas)
