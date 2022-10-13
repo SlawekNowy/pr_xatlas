@@ -4,6 +4,7 @@
 #include <pragma/model/model.h>
 #include <pragma/model/modelmesh.h>
 #include <pragma/pragma_module.hpp>
+#include <pragma/lua/policies/default_parameter_policy.hpp>
 #include <sharedutils/util_parallel_job.hpp>
 #include <luainterface.hpp>
 
@@ -31,7 +32,7 @@ class Atlas
 public:
 	static std::shared_ptr<Atlas> Create();
 	~Atlas();
-	void AddMesh(const ModelSubMesh &mesh,const Material &material);
+	void AddMesh(const ModelSubMesh &mesh,const Material &material,const Vector3 &scale=Vector3{1.f,1.f,1.f});
 
 	//virtual std::vector<Vector2> &GetResult() override {return m_lightmapUvs;}
 	std::vector<AtlasMesh> Generate();
@@ -62,7 +63,7 @@ std::vector<AtlasMesh> Atlas::Generate()
 	chartOptions.textureSeamWeight = 0.5;
 	chartOptions.maxCost = 2.0;
 	chartOptions.maxIterations = 1;
-	chartOptions.useInputMeshUvs = false;
+	chartOptions.useInputMeshUvs = true;
 	chartOptions.fixWinding = false;
 
 	xatlas::PackOptions packOptions {};
@@ -111,10 +112,11 @@ std::vector<AtlasMesh> Atlas::Generate()
 	return atlasMeshes;
 }
 
-void Atlas::AddMesh(const ModelSubMesh &mesh,const Material &material)
+void Atlas::AddMesh(const ModelSubMesh &mesh,const Material &material,const Vector3 &scale)
 {
+	if(mesh.GetGeometryType() != ModelSubMesh::GeometryType::Triangles)
+		return;
 	auto &verts = mesh.GetVertices();
-	auto &tris = mesh.GetTriangles();
 
 	uint32_t materialIndex = 0;
 	auto it = m_materialToIndex.find(&material);
@@ -123,21 +125,32 @@ void Atlas::AddMesh(const ModelSubMesh &mesh,const Material &material)
 	else
 		m_materialToIndex.insert(std::make_pair(&material,m_materialIndex++));
 	std::vector<uint32_t> materials;
-	materials.resize(tris.size() /3,materialIndex);
+	materials.resize(mesh.GetIndexCount() /3,materialIndex);
+
+	std::optional<std::vector<umath::Vertex>> scaledVerts;
+	if(scale != Vector3{1.f,1.f,1.f})
+	{
+		scaledVerts = verts;
+		for(auto &v : *scaledVerts)
+			v.position *= scale;
+	}
+
+	std::vector<uint32_t> indices;
+	mesh.GetIndices(indices);
 	
 	xatlas::MeshDecl meshDecl;
-	auto *vertexData = reinterpret_cast<const uint8_t*>(verts.data());
+	auto *vertexData = reinterpret_cast<const uint8_t*>(scaledVerts.has_value() ? scaledVerts->data() : verts.data());
 	meshDecl.faceMaterialData = materials.data();
 	meshDecl.vertexCount = verts.size();
-	meshDecl.vertexPositionData = vertexData +offsetof(Vertex,position);
-	meshDecl.vertexPositionStride = sizeof(Vertex);
-	meshDecl.vertexNormalData = vertexData +offsetof(Vertex,normal);
-	meshDecl.vertexNormalStride = sizeof(Vertex);
-	meshDecl.vertexUvData = vertexData +offsetof(Vertex,uv);
-	meshDecl.vertexUvStride = sizeof(Vertex);
-	meshDecl.indexCount = tris.size();
-	meshDecl.indexData = tris.data();
-	meshDecl.indexFormat = xatlas::IndexFormat::UInt16;
+	meshDecl.vertexPositionData = vertexData +offsetof(umath::Vertex,position);
+	meshDecl.vertexPositionStride = sizeof(umath::Vertex);
+	meshDecl.vertexNormalData = vertexData +offsetof(umath::Vertex,normal);
+	meshDecl.vertexNormalStride = sizeof(umath::Vertex);
+	meshDecl.vertexUvData = vertexData +offsetof(umath::Vertex,uv);
+	meshDecl.vertexUvStride = sizeof(umath::Vertex);
+	meshDecl.indexCount = indices.size();
+	meshDecl.indexData = indices.data();
+	meshDecl.indexFormat = xatlas::IndexFormat::UInt32;
 	xatlas::AddMeshError error = xatlas::AddMesh(m_atlas,meshDecl);
 	if(error != xatlas::AddMeshError::Success)
 	{
@@ -145,10 +158,10 @@ void Atlas::AddMesh(const ModelSubMesh &mesh,const Material &material)
 		return;
 	}
 	
+#if 0
 	xatlas::UvMeshDecl uvMeshDecl {};
 
 	xatlas::AddMeshError error = xatlas::AddUvMesh(m_atlas,meshDecl);
-#if 0
 struct UvMeshDecl
 {
 	const void *vertexUvData = nullptr;
@@ -258,9 +271,8 @@ struct AtlasMesh
 	xatlasMod[defMesh];
 
 	auto defNode = luabind::class_<Atlas>("Atlas");
-	defNode.def("AddMesh",static_cast<void(*)(Atlas&,const ModelSubMesh&,const Material&)>([](Atlas &atlas,const ModelSubMesh &mesh,const Material &mat) {
-		atlas.AddMesh(mesh,mat);
-	}));
+	defNode.def("AddMesh",&Atlas::AddMesh);
+	defNode.def("AddMesh",&Atlas::AddMesh,luabind::default_parameter_policy<4,Vector3{1.f,1.f,1.f}>{});
 	defNode.def("Generate",static_cast<luabind::object(*)(lua_State*,Atlas&)>([](lua_State *l,Atlas &atlas) -> luabind::object {
 		auto meshes = atlas.Generate();
 		return Lua::vector_to_table(l,meshes);
