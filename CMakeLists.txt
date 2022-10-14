@@ -6,6 +6,10 @@ set(PROJ_NAME pr_xatlas)
 
 project(${PROJ_NAME} CXX)
 
+
+
+set(DEPENDENCY_XATLAS_INCLUDE ${CMAKE_CURRENT_LIST_DIR}/third_party/xatlas/source/xatlas/ CACHE PATH "Path to include directory.")
+search_lib_recursive(DEPENDENCY_XATLAS_LIBRARY third_party/xatlas/${BINARY_PRAGMA_DIR} xatlas STATIC)
 # set(PRECOMPILED_HEADER "stdafx")
 
 link_external_library(xatlas)
