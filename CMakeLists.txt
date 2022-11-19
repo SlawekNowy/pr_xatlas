@@ -19,6 +19,9 @@ if(WIN32)
 endif()
 add_include_dir(glm)
 
+set(DEPENDENCY_XATLAS_INCLUDE ${CMAKE_CURRENT_LIST_DIR}/third_party/xatlas/source/xatlas CACHE PATH "" FORCE)
+search_lib_recursive(DEPENDENCY_XATLAS_LIBRARY third_party/xatlas/${BINARY_PRAGMA_DIR} xatlas STATIC)
+
 link_generic_module_libraries()
 register_pragma_module(${PROJ_NAME})
 
